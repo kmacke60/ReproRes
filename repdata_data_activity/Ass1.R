@@ -1,4 +1,4 @@
-setwd("c:/Users/km40780/Desktop/RR/repdata_data_activity")
+setwd("c:/RR/Reprores/repdata_data_activity")
 ## Read in the data
 #====
         activity <- read.csv("activity.csv",header=TRUE)

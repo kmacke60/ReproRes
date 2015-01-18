@@ -1,0 +1,130 @@
+This is the first Peer Reviewed Assignment for the Reproducible Research Course
+===============================================================================
+First, set the working directory, prepare libraries and read in the data:
+```{r}
+library(dplyr)
+library(tidyr)
+library(reshape2)
+setwd("c:/RR/ReproRes/repdata_data_activity")
+activity <- read.csv("activity.csv",header=TRUE)
+```
+## Creating dataset with missing values removed
+```{r}
+step_data <- activity[complete.cases(activity),]
+step_data$interval <- sprintf("%04d", step_data$interval)
+step_data$int_time <- strptime(step_data$interval, format = "%H%M")
+
+```
+## Histogram of step count per day, missing values removed
+```{r}
+step_data <- transform(step_data, dayf=factor(date))
+daysum <- tapply(step_data$step, step_data$dayf, sum)
+hist(daysum, xlab = "Step count per day")
+```
+## Step up data frame to calculate Mena and Median steps per day:
+
+# First calculate total no of steps per day
+```{r}
+step_sum <- tapply(step_data$steps,step_data$dayf, sum)
+daily_steps <- as.data.frame(step_sum)
+```
+# Next calculate median of total step count per day
+```{r}
+step_median <- quantile(daily_steps$step_sum,probs=0.5)
+print("Median steps per day = ")
+print(step_median)
+```
+# And mean of total step count per day:
+```{r}
+step_mean <- mean(daily_steps$step_sum)
+print("Mean steps per day = ")
+print(step_mean)
+```
+## Average daily activity pattern
+# Plot of average number of steps in each 5 minute interval
+```{r}
+step_data <- transform(step_data, intervalf=factor(interval))
+intmean <- tapply(step_data$step, step_data$intervalf, mean)
+plot(intmean, type="l", xlab="5 minute interval", ylab = "Average number of steps")
+```
+# Interval where average number of steps is maximum
+```{r}
+maxstep = max(intmean)
+max_index <- which(intmean == max(intmean))
+max_interval <- step_data$interval_revised[max_index]
+max_interval
+```
+## Imputing missing data
+# First, get count of missing data
+```{r}
+total_length <- dim(activity)[1]
+present_length <- dim(step_data)[1]
+missing_count <- total_length - present_length
+print("Missing = ")
+missing_count
+```
+# Replacing the missing values with the 5 minute interval means
+# Make wide version of actitity data frame
+```{r}
+widestep <- dcast(activity, date ~ interval, value.var = "steps")
+wsdate <- widestep$date
+names(widestep) <- paste("time", names(widestep), sep = "")
+for (i in which(sapply(widestep, is.numeric))) {
+  widestep[is.na(widestep[, i]), i] <- mean(widestep[, i],  na.rm = TRUE)
+}
+widestep$date <- wsdate
+```
+# Make long version of activity with missing replace by mean for interval
+```{r}
+step_nomiss <- widestep %>%
+  gather(interval, step, time0:time2355)
+```
+## Histogram of step count per day for data with missing values replaced by interval means
+```{r}
+step_nomiss$interval <- as.numeric(substr(step_nomiss$interval, 5,8))
+step_nomiss <- transform(step_nomiss, dayf=factor(date))
+daysum <- tapply(step_nomiss$step, step_nomiss$date, sum)
+hist(daysum, xlab = "Step count per day imputted missing")
+```
+# Mean and Median steps per day for dataset with missing values
+# replaced by interval mean:
+## First calculate total no of steps per day
+```{r}
+step_summi <- tapply(step_nomiss$step,step_nomiss$dayf, sum)
+daily_stepsmi <- as.data.frame(step_summi)
+```
+# Calculate median and mean for total daily steps, imputted missing
+```{r}
+step_median_mi <- quantile(daily_stepsmi$step_summi,probs=0.5)
+print("Median steps per day = ")
+print(step_median_mi)
+print("Mean steps per day = ")
+step_mean_mi <- mean(daily_stepsmi$step_summi)
+print(step_mean_mi)
+```
+# Confirm that replacing missing data has had no effect on means and little effect on the median
+```{r}
+meandiff <- abs(step_mean_mi - step_meane)
+meddiff <- abs(step_median_mi - step_mediane)
+meandiff
+meddiff
+```
+## Investgating the difference in activity pattern between weekdays
+## and weekends
+
+# create factor for differentiating between weekdays and weekend days
+```{r}
+step_nomiss$timedate <- as.Date(step_nomiss$timedate,format="%Y-%m-%d")
+step_nomiss$day <- weekdays(step_nomiss$timedate)
+step_nomiss$weekday <- (step_nomiss$day == "Saturday" | step_nomiss$day== "Sunday")
+step_nomiss$weekday <- as.factor(step_nomiss$weekday)
+
+step_nomiss$intday <- as.factor(paste(step_nomiss$weekday,step_nomiss$interval))
+```
+## Calculate mean 5 minute interval steps counts for weekends and weekdays and plot results
+```{r}
+suppressWarnings(intmean2 <- aggregate(step_nomiss, by = list(step_nomiss$interval, step_nomiss$weekday), mean))
+intmean2$day <- rep(c("Weekend", "Weekday"), each=288)
+
+xyplot(step ~ interval | day, data = intmean2, layout = c(1,2), type="l",ylab="Number of steps")
+```
